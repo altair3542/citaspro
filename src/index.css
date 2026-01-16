@@ -1,0 +1,6 @@
+@import "tailwindcss";
+
+/* opcional: estilos base globales mínimos */
+:root {
+  color-scheme: light;
+}
