@@ -1,6 +1,7 @@
 import Card from "../../../shared/components/ui/Card";
 import Button from "../../../shared/components/ui/Button";
 
+
 export default function EmptyState({ title, description, actionLabel, onAction }) {
   return (
     <Card className="p-6 text-center">
