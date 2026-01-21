@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState} from 'react'
-import { fetchAppointments, fetchClients } from "../data/mock"
+import { useEffect, useMemo, useState } from "react";
+import { fetchAppointments, fetchClients } from "../data/mock";
 
 export function useDashboardData() {
   const [clients, setClients] = useState([]);
