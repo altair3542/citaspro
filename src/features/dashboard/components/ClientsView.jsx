@@ -4,7 +4,13 @@ import Input from "../../../shared/components/ui/Input";
 import Button from "../../../shared/components/ui/Button";
 import EmptyState from "./EmptyState";
 
-export default function ClientsView({ clients, onSelectClient }) {
+export default function ClientsView({
+  clients,
+  onSelectClient,
+  onCreate,
+  onEdit,
+  onDelete,
+}) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all"); // all | active | inactive
 
@@ -13,29 +19,25 @@ export default function ClientsView({ clients, onSelectClient }) {
 
     return clients.filter((c) => {
       const matchesStatus = status === "all" ? true : c.status === status;
-
       const hay = `${c.name} ${c.phone} ${c.email || ""}`.toLowerCase();
       const matchesSearch = q ? hay.includes(q) : true;
-
       return matchesStatus && matchesSearch;
     });
   }, [clients, search, status]);
 
-  // Estado vacío “real” (no hay clientes en el sistema)
   if (clients.length === 0) {
     return (
       <EmptyState
         title="Sin clientes aún"
-        description="En esta sesión trabajamos con datos simulados. En la sesión 3 agregaremos creación y edición."
-        actionLabel="Simular acción"
-        onAction={() => window.alert("Acción simulada")}
+        description="Crea tu primer cliente para comenzar."
+        actionLabel="Nuevo cliente"
+        onAction={onCreate}
       />
     );
   }
 
   return (
     <div className="grid gap-4">
-      {/* Filtros */}
       <Card className="p-4">
         <div className="grid gap-3 md:grid-cols-3">
           <Input
@@ -60,14 +62,11 @@ export default function ClientsView({ clients, onSelectClient }) {
           </div>
 
           <div className="flex items-end justify-end">
-            <Button onClick={() => window.alert("Crear cliente (real en sesión 3)")}>
-              Nuevo cliente
-            </Button>
+            <Button onClick={onCreate}>Nuevo cliente</Button>
           </div>
         </div>
       </Card>
 
-      {/* Estado vacío “derivado” (no hay resultados tras filtrar) */}
       {filtered.length === 0 ? (
         <EmptyState
           title="No hay resultados"
@@ -87,9 +86,21 @@ export default function ClientsView({ clients, onSelectClient }) {
                 </div>
               </div>
 
-              <Button variant="secondary" onClick={() => onSelectClient(c)}>
-                Ver detalle
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="secondary" onClick={() => onSelectClient(c)}>
+                  Ver
+                </Button>
+                <Button variant="secondary" onClick={() => onEdit(c)}>
+                  Editar
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => onDelete(c)}
+                  className="text-red-700 hover:bg-red-50"
+                >
+                  Eliminar
+                </Button>
+              </div>
             </Card>
           ))}
         </div>
