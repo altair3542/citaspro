@@ -182,6 +182,7 @@ export default function DashboardPage() {
         mode={clientFormMode}
         initialClient={editingClient}
         onClose={() => setClientFormOpen(false)}
+        
         onSubmit={(payload) => {
           if (clientFormMode === "create") {
             createClient(payload);
