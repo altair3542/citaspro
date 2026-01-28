@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js"
 
 function requireENV(name) {
-  const value = import meta.env[name]
+  const value = import.meta.env[name]
   if (!value) {
     throw new Error(`Falta la variable de entorno ${name}. Revisa tus variables de entorno.`);
   }

@@ -12,8 +12,12 @@ import ClientsView from "../components/ClientsView";
 import AppointmentsView from "../components/AppointmentsView";
 import DetailModal from "../components/DetailModal";
 import ClientFormModal from "../components/ClientFormModal";
+import { useAuth } from "../../auth/AuthProvider";
+
 
 export default function DashboardPage() {
+  const { user, signOut } = useAuth();
+
   const {
     clients,
     appointments,
@@ -112,7 +116,9 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <DashboardTabs active={tab} onChange={setTab} />
+        <div className="flex items-center gap-3">
+          <DashboardTabs active={tab} onChange={setTab} />
+        </div>
       </div>
 
       {tab === "clients" ? (
@@ -182,7 +188,7 @@ export default function DashboardPage() {
         mode={clientFormMode}
         initialClient={editingClient}
         onClose={() => setClientFormOpen(false)}
-        
+
         onSubmit={(payload) => {
           if (clientFormMode === "create") {
             createClient(payload);
@@ -199,6 +205,24 @@ export default function DashboardPage() {
           }
         }}
       />
+
+      <div className="flex items-end gap-2">
+        <div className="text-sm text-gray-600">
+          {user?.email ? `Sesión: ${user.email}` : null}
+        </div>
+
+        <Button
+          variant="secondary"
+          onClick={async () => {
+            await signOut();
+            // el RequireAuth hará el redirect automáticamente
+          }}
+        >
+          Cerrar sesión
+        </Button>
+      </div>
     </div>
+
+
   );
 }

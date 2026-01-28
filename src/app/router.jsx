@@ -4,6 +4,7 @@ import HomePage from "../pages/HomePage";
 import LoginPage from "../features/auth/pages/LoginPage";
 import SignupPage from "../features/auth/pages/SignupPage";
 import DashboardPage from "../features/dashboard/pages/DashboardPage";
+import RequireAuth from "../features/auth/RequireAuth";
 
 export const router = createBrowserRouter([
   {
@@ -13,7 +14,12 @@ export const router = createBrowserRouter([
       { index: true, element: <HomePage /> },
       { path: "login", element: <LoginPage /> },
       { path: "signup", element: <SignupPage /> },
-      { path: "dashboard", element: <DashboardPage /> }, // placeholder (se protege en sesión 4)
+      {
+        element: <RequireAuth />,
+        children: [
+          { path: "dashboard", element: <DashboardPage /> },
+        ],
+      },
     ],
   },
 ]);
