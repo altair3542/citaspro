@@ -17,6 +17,7 @@ import { useAuth } from "../../auth/AuthProvider";
 
 export default function DashboardPage() {
   const { user, signOut } = useAuth();
+  const userId = user?.id;
 
   const {
     clients,
@@ -28,7 +29,7 @@ export default function DashboardPage() {
     createClient,
     updateClient,
     deleteClient,
-  } = useDashboardData();
+  } = useDashboardData({ userId });
 
   const [tab, setTab] = useState("clients"); // clients | appointments (si ya agregaste otros tabs, mantenlos)
 
@@ -60,19 +61,18 @@ export default function DashboardPage() {
     setClientFormOpen(true);
   }
 
-  function handleDeleteClient(client) {
-    const ok = window.confirm(
-      `¿Eliminar el cliente "${client.name}"?\n\nEsta acción no se puede deshacer.`
-    );
+  async function handleDeleteClient(client) {
+    const ok = window.confirm(`¿Eliminar el cliente "${client.name}"?\n\nEsta acción no se puede deshacer.`);
     if (!ok) return;
 
     try {
-      deleteClient(client.id);
+      await deleteClient(client.id);
       if (selectedClient?.id === client.id) setSelectedClient(null);
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : "No se pudo eliminar el cliente.");
+      window.alert(e?.message || "No se pudo eliminar el cliente.");
     }
   }
+
 
   // Loading
   if (loading) {
@@ -182,29 +182,26 @@ export default function DashboardPage() {
         ) : null}
       </DetailModal>
 
-      {/* Modal formulario (Sesión 3) */}
-      <ClientFormModal
-        open={clientFormOpen}
-        mode={clientFormMode}
-        initialClient={editingClient}
-        onClose={() => setClientFormOpen(false)}
+    <ClientFormModal
+      open={clientFormOpen}
+      mode={clientFormMode}
+      initialClient={editingClient}
+      onClose={() => setClientFormOpen(false)}
+      onSubmit={async (payload) => {
+        if (clientFormMode === "create") {
+          await createClient(payload);
+          return;
+        }
 
-        onSubmit={(payload) => {
-          if (clientFormMode === "create") {
-            createClient(payload);
-            return;
-          }
+        if (!editingClient) throw new Error("No hay cliente para editar.");
 
-          if (!editingClient) throw new Error("No hay cliente para editar.");
+        const updated = await updateClient(editingClient.id, payload);
 
-          updateClient(editingClient.id, payload);
-
-          // Mantener sincronizado el detalle si está abierto
-          if (selectedClient?.id === editingClient.id) {
-            setSelectedClient((prev) => (prev ? { ...prev, ...payload } : prev));
-          }
-        }}
-      />
+        if (selectedClient?.id === editingClient.id) {
+          setSelectedClient(updated);
+        }
+      }}
+    />
 
       <div className="flex items-end gap-2">
         <div className="text-sm text-gray-600">

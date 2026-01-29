@@ -11,13 +11,7 @@ function normalizePhone(phone) {
   return phone.replace(/\s+/g, "").trim();
 }
 
-export default function ClientFormModal({
-  open,
-  mode, // "create" | "edit"
-  initialClient, // cliente a editar o null
-  onClose,
-  onSubmit, // (payload) => void (puede lanzar Error)
-}) {
+export default function ClientFormModal({ open, mode, initialClient, onClose, onSubmit }) {
   const isEdit = mode === "edit";
 
   const [name, setName] = useState("");
@@ -26,6 +20,7 @@ export default function ClientFormModal({
   const [status, setStatus] = useState("active");
 
   const [formError, setFormError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -43,11 +38,11 @@ export default function ClientFormModal({
     }
 
     setFormError("");
+    setSubmitting(false);
   }, [open, isEdit, initialClient]);
 
   const validation = useMemo(() => {
     const errors = {};
-
     const n = name.trim();
     const p = normalizePhone(phone);
     const e = email.trim();
@@ -55,17 +50,12 @@ export default function ClientFormModal({
     if (!n) errors.name = "El nombre es obligatorio.";
     if (!p) errors.phone = "El teléfono es obligatorio.";
     if (p && !/^\d{7,15}$/.test(p)) errors.phone = "Teléfono inválido. Usa 7 a 15 dígitos (solo números).";
-
     if (e && !isValidEmail(e)) errors.email = "Email inválido.";
 
-    return {
-      ok: Object.keys(errors).length === 0,
-      errors,
-      payload: { name: n, phone: p, email: e, status },
-    };
+    return { ok: Object.keys(errors).length === 0, errors, payload: { name: n, phone: p, email: e, status } };
   }, [name, phone, email, status]);
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     setFormError("");
 
@@ -74,11 +64,14 @@ export default function ClientFormModal({
       return;
     }
 
+    setSubmitting(true);
     try {
-      onSubmit(validation.payload);
+      await onSubmit(validation.payload);
       onClose();
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Ocurrió un error al guardar.");
+      setFormError(err?.message || "Ocurrió un error al guardar.");
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -91,31 +84,13 @@ export default function ClientFormModal({
           </div>
         ) : null}
 
-        <Input
-          label="Nombre"
-          name="name"
-          placeholder="Ej: Ana Pérez"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
+        <Input label="Nombre" name="name" value={name} onChange={(e) => setName(e.target.value)} />
         {validation.errors.name ? <p className="text-sm text-red-600 -mt-3">{validation.errors.name}</p> : null}
 
-        <Input
-          label="Teléfono"
-          name="phone"
-          placeholder="Ej: 3001234567"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-        />
+        <Input label="Teléfono" name="phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
         {validation.errors.phone ? <p className="text-sm text-red-600 -mt-3">{validation.errors.phone}</p> : null}
 
-        <Input
-          label="Email (opcional)"
-          name="email"
-          placeholder="correo@ejemplo.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
+        <Input label="Email (opcional)" name="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         {validation.errors.email ? <p className="text-sm text-red-600 -mt-3">{validation.errors.email}</p> : null}
 
         <div className="grid gap-1.5">
@@ -131,11 +106,11 @@ export default function ClientFormModal({
         </div>
 
         <div className="mt-2 flex justify-end gap-2">
-          <Button type="button" variant="secondary" onClick={onClose}>
+          <Button type="button" variant="secondary" onClick={onClose} disabled={submitting}>
             Cancelar
           </Button>
-          <Button type="submit" disabled={!validation.ok}>
-            {isEdit ? "Guardar cambios" : "Crear cliente"}
+          <Button type="submit" disabled={!validation.ok || submitting}>
+            {submitting ? "Guardando…" : isEdit ? "Guardar cambios" : "Crear cliente"}
           </Button>
         </div>
       </form>

@@ -1,14 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { fetchAppointments, fetchClients } from "../data/mock";
+import { fetchAppointments } from "../data/mock";
+import { createClientDb, deleteClientDb, listClients, updateClientDb } from "../data/clientsApi";
 
-function makeId(prefix = "c") {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
-    return `${prefix}_${crypto.randomUUID()}`;
-  }
-  return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-}
-
-export function useDashboardData() {
+export function useDashboardData({ userId }) {
   const [clients, setClients] = useState([]);
   const [appointments, setAppointments] = useState([]);
 
@@ -22,18 +16,21 @@ export function useDashboardData() {
     let alive = true;
 
     async function load() {
+      if (!userId) return;
+
       setLoading(true);
       setError("");
 
       try {
-        const [c, a] = await Promise.all([fetchClients(), fetchAppointments()]);
+        const [c, a] = await Promise.all([listClients(userId), fetchAppointments()]);
         if (!alive) return;
 
+        // Nota: appointments sigue mock por ahora (se persiste en otra sesión).
         setClients(c);
         setAppointments(a);
       } catch (e) {
         if (!alive) return;
-        setError(e instanceof Error ? e.message : "Error desconocido cargando datos.");
+        setError(e?.message || "Error desconocido cargando datos.");
       } finally {
         if (!alive) return;
         setLoading(false);
@@ -41,11 +38,10 @@ export function useDashboardData() {
     }
 
     load();
-
     return () => {
       alive = false;
     };
-  }, [reloadKey]);
+  }, [userId, reloadKey]);
 
   const clientById = useMemo(() => {
     const map = new Map();
@@ -53,46 +49,27 @@ export function useDashboardData() {
     return map;
   }, [clients]);
 
-  // =========================
-  // CRUD real de Clientes (Sesión 3)
-  // =========================
-
-  function createClient(data) {
-    const newClient = {
-      id: makeId("c"),
-      name: data.name,
-      phone: data.phone,
-      email: data.email || "",
-      status: data.status || "active",
-    };
-
-    setClients((prev) => [newClient, ...prev]);
-    return newClient;
+  // CRUD real (DB)
+  async function createClient(payload) {
+    const row = await createClientDb(userId, payload);
+    setClients((prev) => [row, ...prev]);
+    return row;
   }
 
-  function updateClient(clientId, data) {
-    setClients((prev) =>
-      prev.map((c) =>
-        c.id === clientId
-          ? {
-              ...c,
-              name: data.name,
-              phone: data.phone,
-              email: data.email || "",
-              status: data.status || c.status,
-            }
-          : c
-      )
-    );
+  async function updateClient(clientId, payload) {
+    const row = await updateClientDb(userId, clientId, payload);
+    setClients((prev) => prev.map((c) => (c.id === clientId ? row : c)));
+    return row;
   }
 
-  function deleteClient(clientId) {
-    // Regla de negocio: no eliminar si tiene citas asociadas
+  async function deleteClient(clientId) {
+    // Regla de negocio local (hasta que citas sean persistentes)
     const hasAppointments = appointments.some((a) => a.clientId === clientId);
     if (hasAppointments) {
       throw new Error("No puedes eliminar este cliente porque tiene citas asociadas.");
     }
 
+    await deleteClientDb(userId, clientId);
     setClients((prev) => prev.filter((c) => c.id !== clientId));
   }
 
@@ -103,8 +80,6 @@ export function useDashboardData() {
     loading,
     error,
     reload,
-
-    // CRUD Clientes
     createClient,
     updateClient,
     deleteClient,
