@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { fetchAppointments } from "../data/mock";
 import { createClientDb, deleteClientDb, listClients, updateClientDb } from "../data/clientsApi";
+import {
+  countAppointmentsForClient,
+  createAppointmentDb,
+  deleteAppointmentDb,
+  listAppointments,
+  updateAppointmentDb,
+} from "../data/appointmentsApi";
 
 export function useDashboardData({ userId }) {
   const [clients, setClients] = useState([]);
@@ -22,10 +28,9 @@ export function useDashboardData({ userId }) {
       setError("");
 
       try {
-        const [c, a] = await Promise.all([listClients(userId), fetchAppointments()]);
+        const [c, a] = await Promise.all([listClients(userId), listAppointments(userId)]);
         if (!alive) return;
 
-        // Nota: appointments sigue mock por ahora (se persiste en otra sesión).
         setClients(c);
         setAppointments(a);
       } catch (e) {
@@ -49,7 +54,10 @@ export function useDashboardData({ userId }) {
     return map;
   }, [clients]);
 
-  // CRUD real (DB)
+  // =========
+  // CLIENTES
+  // =========
+
   async function createClient(payload) {
     const row = await createClientDb(userId, payload);
     setClients((prev) => [row, ...prev]);
@@ -63,14 +71,37 @@ export function useDashboardData({ userId }) {
   }
 
   async function deleteClient(clientId) {
-    // Regla de negocio local (hasta que citas sean persistentes)
-    const hasAppointments = appointments.some((a) => a.clientId === clientId);
-    if (hasAppointments) {
+    // 1) check explícito para mensaje más claro
+    const n = await countAppointmentsForClient(userId, clientId);
+    if (n > 0) {
       throw new Error("No puedes eliminar este cliente porque tiene citas asociadas.");
     }
 
+    // 2) DB delete (además el FK impediría borrado si existieran citas)
     await deleteClientDb(userId, clientId);
+
     setClients((prev) => prev.filter((c) => c.id !== clientId));
+  }
+
+  // =======
+  // CITAS
+  // =======
+
+  async function createAppointment(payload) {
+    const row = await createAppointmentDb(userId, payload);
+    setAppointments((prev) => [row, ...prev]);
+    return row;
+  }
+
+  async function updateAppointment(appointmentId, payload) {
+    const row = await updateAppointmentDb(userId, appointmentId, payload);
+    setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? row : a)));
+    return row;
+  }
+
+  async function deleteAppointment(appointmentId) {
+    await deleteAppointmentDb(userId, appointmentId);
+    setAppointments((prev) => prev.filter((a) => a.id !== appointmentId));
   }
 
   return {
@@ -80,8 +111,15 @@ export function useDashboardData({ userId }) {
     loading,
     error,
     reload,
+
+    // clientes
     createClient,
     updateClient,
     deleteClient,
+
+    // citas
+    createAppointment,
+    updateAppointment,
+    deleteAppointment,
   };
 }

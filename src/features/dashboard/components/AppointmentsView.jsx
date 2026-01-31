@@ -1,116 +1,182 @@
-import { useMemo, useState } from "react";
-import Card from "../../../shared/components/ui/Card";
+import { useEffect, useMemo, useState } from "react";
+import DetailModal from "./DetailModal";
 import Input from "../../../shared/components/ui/Input";
 import Button from "../../../shared/components/ui/Button";
-import EmptyState from "./EmptyState";
 
-function formatDate(iso) {
+// Convierte un ISO (timestamptz) a valor para <input type="datetime-local">
+function isoToLocalInputValue(iso) {
+  if (!iso) return "";
   const d = new Date(iso);
-  return isNaN(d.getTime()) ? iso : d.toLocaleString();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export default function AppointmentsView({
-  appointments,
-  clientById,
-  onSelectAppointment,
+// Convierte el valor de datetime-local a ISO string
+function localInputValueToIso(localValue) {
+  // localValue: "YYYY-MM-DDTHH:mm"
+  if (!localValue) return "";
+  const d = new Date(localValue);
+  return d.toISOString();
+}
+
+export default function AppointmentFormModal({
+  open,
+  mode, // "create" | "edit"
+  initialAppointment,
+  clients, // lista de clientes para select
+  onClose,
+  onSubmit, // async (payload) => ...
 }) {
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("all"); // all | scheduled | completed | canceled
+  const isEdit = mode === "edit";
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+  const [clientId, setClientId] = useState("");
+  const [dateTimeLocal, setDateTimeLocal] = useState("");
+  const [service, setService] = useState("");
+  const [notes, setNotes] = useState("");
+  const [status, setStatus] = useState("scheduled");
 
-    return appointments.filter((a) => {
-      const c = clientById.get(a.clientId);
-      const clientName = (c?.name || "Cliente desconocido").toLowerCase();
+  const [formError, setFormError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-      const matchesStatus = status === "all" ? true : a.status === status;
+  useEffect(() => {
+    if (!open) return;
 
-      const hay = `${clientName} ${a.service} ${a.notes || ""}`.toLowerCase();
-      const matchesSearch = q ? hay.includes(q) : true;
+    if (isEdit && initialAppointment) {
+      setClientId(initialAppointment.clientId || "");
+      setDateTimeLocal(isoToLocalInputValue(initialAppointment.dateTime));
+      setService(initialAppointment.service || "");
+      setNotes(initialAppointment.notes || "");
+      setStatus(initialAppointment.status || "scheduled");
+    } else {
+      setClientId(clients?.[0]?.id || "");
+      setDateTimeLocal("");
+      setService("");
+      setNotes("");
+      setStatus("scheduled");
+    }
 
-      return matchesStatus && matchesSearch;
-    });
-  }, [appointments, clientById, search, status]);
+    setFormError("");
+    setSubmitting(false);
+  }, [open, isEdit, initialAppointment, clients]);
 
-  // Estado vacío “real”
-  if (appointments.length === 0) {
-    return (
-      <EmptyState
-        title="Sin citas aún"
-        description="En esta sesión trabajamos con datos simulados. Más adelante crearemos citas reales."
-        actionLabel="Simular acción"
-        onAction={() => window.alert("Acción simulada")}
-      />
-    );
+  const validation = useMemo(() => {
+    const errors = {};
+    const s = service.trim();
+    const dtIso = localInputValueToIso(dateTimeLocal);
+
+    if (!clientId) errors.clientId = "Selecciona un cliente.";
+    if (!dateTimeLocal) errors.dateTime = "La fecha/hora es obligatoria.";
+    if (dateTimeLocal && !dtIso) errors.dateTime = "Fecha/hora inválida.";
+    if (!s) errors.service = "El servicio es obligatorio.";
+
+    return {
+      ok: Object.keys(errors).length === 0,
+      errors,
+      payload: {
+        clientId,
+        dateTime: dtIso,
+        service: s,
+        notes: notes.trim(),
+        status,
+      },
+    };
+  }, [clientId, dateTimeLocal, service, notes, status]);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setFormError("");
+
+    if (!validation.ok) {
+      setFormError("Corrige los campos marcados antes de continuar.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await onSubmit(validation.payload);
+      onClose();
+    } catch (err) {
+      setFormError(err?.message || "Ocurrió un error al guardar.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
-    <div className="grid gap-4">
-      {/* Filtros */}
-      <Card className="p-4">
-        <div className="grid gap-3 md:grid-cols-3">
-          <Input
-            label="Buscar"
-            name="appointmentSearch"
-            placeholder="Cliente, servicio o notas"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-
-          <div className="grid gap-1.5">
-            <label className="text-sm font-medium text-gray-800">Estado</label>
-            <select
-              className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm"
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-            >
-              <option value="all">Todos</option>
-              <option value="scheduled">Programadas</option>
-              <option value="completed">Completadas</option>
-              <option value="canceled">Canceladas</option>
-            </select>
+    <DetailModal open={open} title={isEdit ? "Editar cita" : "Nueva cita"} onClose={onClose}>
+      <form className="grid gap-4" onSubmit={handleSubmit}>
+        {formError ? (
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {formError}
           </div>
+        ) : null}
 
-          <div className="flex items-end justify-end">
-            <Button onClick={() => window.alert("Crear cita (real en sesión 3/5)")}>
-              Nueva cita
-            </Button>
-          </div>
+        <div className="grid gap-1.5">
+          <label className="text-sm font-medium text-gray-800">Cliente</label>
+          <select
+            className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm"
+            value={clientId}
+            onChange={(e) => setClientId(e.target.value)}
+          >
+            {Array.isArray(clients) && clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          {validation.errors.clientId ? <p className="text-sm text-red-600">{validation.errors.clientId}</p> : null}
         </div>
-      </Card>
 
-      {/* No resultados tras filtrar */}
-      {filtered.length === 0 ? (
-        <EmptyState
-          title="No hay resultados"
-          description="Prueba cambiando el texto de búsqueda o el estado."
+        <Input
+          label="Fecha y hora"
+          name="dateTime"
+          type="datetime-local"
+          value={dateTimeLocal}
+          onChange={(e) => setDateTimeLocal(e.target.value)}
         />
-      ) : (
-        <div className="grid gap-3">
-          {filtered.map((a) => {
-            const c = clientById.get(a.clientId);
+        {validation.errors.dateTime ? <p className="text-sm text-red-600 -mt-3">{validation.errors.dateTime}</p> : null}
 
-            return (
-              <Card key={a.id} className="p-4 flex items-center justify-between gap-4">
-                <div>
-                  <div className="font-semibold">{c?.name || "Cliente desconocido"}</div>
-                  <div className="text-sm text-gray-600">
-                    {formatDate(a.dateTime)} • {a.service}
-                  </div>
-                  <div className="mt-1 text-xs text-gray-600">
-                    Estado: <span className="font-medium">{a.status}</span>
-                  </div>
-                </div>
+        <Input
+          label="Servicio"
+          name="service"
+          placeholder="Ej: Corte de cabello"
+          value={service}
+          onChange={(e) => setService(e.target.value)}
+        />
+        {validation.errors.service ? <p className="text-sm text-red-600 -mt-3">{validation.errors.service}</p> : null}
 
-                <Button variant="secondary" onClick={() => onSelectAppointment(a)}>
-                  Ver detalle
-                </Button>
-              </Card>
-            );
-          })}
+        <div className="grid gap-1.5">
+          <label className="text-sm font-medium text-gray-800">Notas (opcional)</label>
+          <textarea
+            className="min-h-24 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Observaciones..."
+          />
         </div>
-      )}
-    </div>
+
+        <div className="grid gap-1.5">
+          <label className="text-sm font-medium text-gray-800">Estado</label>
+          <select
+            className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+          >
+            <option value="scheduled">Programada</option>
+            <option value="completed">Completada</option>
+            <option value="cancelled">Cancelada</option>
+          </select>
+        </div>
+
+        <div className="mt-2 flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onClose} disabled={submitting}>
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={!validation.ok || submitting}>
+            {submitting ? "Guardando…" : isEdit ? "Guardar cambios" : "Crear cita"}
+          </Button>
+        </div>
+      </form>
+    </DetailModal>
   );
 }
