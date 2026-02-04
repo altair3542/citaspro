@@ -13,7 +13,7 @@ import ClientsView from "../components/ClientsView";
 import AppointmentsView from "../components/AppointmentsView";
 import DetailModal from "../components/DetailModal";
 import ClientFormModal from "../components/ClientFormModal";
-import AppointmentFormModal from "../components/AppointmentsView";
+import AppointmentFormModal from "../components/AppointmentFormModal";
 
 export default function DashboardPage() {
   const { user, signOut } = useAuth();
